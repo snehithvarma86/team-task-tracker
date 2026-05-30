@@ -1,6 +1,6 @@
-// src/controllers/task.controller.ts
 import { Request, Response, NextFunction } from 'express';
 import { taskService } from '../services/task.service';
+import { cacheService } from '../services/cache.service';
 
 export const taskController = {
   async create(req: Request, res: Response, next: NextFunction) {
@@ -12,10 +12,23 @@ export const taskController = {
 
   async getAll(req: Request, res: Response, next: NextFunction) {
     try {
+      const queryHash = new URLSearchParams(req.query as any).toString();
+      const cacheKey = `tasks:user:${req.user!.id}:${queryHash}`;
+
+      const cachedData = await cacheService.get(cacheKey);
+      if (cachedData) {
+         res.setHeader('X-Cache', 'HIT');
+         return res.status(200).json({ status: 200, ...cachedData });
+      }
+
       const result = await taskService.getTasks(req.query, req.user);
+
+      await cacheService.set(cacheKey, result);
+      
+      res.setHeader('X-Cache', 'MISS');
       res.status(200).json({ status: 200, ...result });
     } catch (error) { next(error); }
-  },
+    },
 
   async update(req: Request, res: Response, next: NextFunction) {
     try {

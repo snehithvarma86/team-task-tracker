@@ -1,8 +1,8 @@
-// src/services/task.service.ts
 import { eq, and, desc } from 'drizzle-orm';
 import { db } from '../config/db';
 import { tasks } from '../db/schema/tasks';
 import { createAppError } from '../utils/errors';
+import { cacheService } from './cache.service';
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   TODO: ['IN_PROGRESS', 'BLOCKED'],
@@ -23,6 +23,9 @@ export const taskService = {
       assigneeId: data.assigneeId,
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
     }).returning();
+
+    await cacheService.invalidateUserTasks(user.id);
+    return newTask;
 
     return newTask;
   },
@@ -71,6 +74,11 @@ export const taskService = {
           `Cannot transition task from ${existingTask.status} to ${data.status}`
         );
       }
+
+      await cacheService.invalidateUserTasks(user.id);
+      if (data.assigneeId && data.assigneeId !== existingTask.assigneeId) {
+        await cacheService.invalidateUserTasks(data.assigneeId);
+      }
     }
 
     const [updatedTask] = await db.update(tasks)
@@ -82,6 +90,11 @@ export const taskService = {
       .where(eq(tasks.id, taskId))
       .returning();
 
+      await cacheService.invalidateUserTasks(user.id);
+      if (data.assigneeId && data.assigneeId !== existingTask.assigneeId) {
+        await cacheService.invalidateUserTasks(data.assigneeId);
+      }
+    
     return updatedTask;
   },
 
@@ -92,6 +105,7 @@ export const taskService = {
     }
 
     await db.delete(tasks).where(eq(tasks.id, taskId));
+    await cacheService.invalidateUserTasks(user.id);
     return { success: true };
   }
 };

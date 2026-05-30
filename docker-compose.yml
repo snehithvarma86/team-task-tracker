@@ -1,5 +1,23 @@
 version: '3.8'
+
 services:
+  api:
+    build: .
+    container_name: task_tracker_api
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DATABASE_URL=postgres://admin:password123@db:5432/task_tracker
+      - REDIS_URL=redis://cache:6379
+      - JWT_SECRET=super_secret_key_change_in_production
+    depends_on:
+      - db
+      - cache
+    volumes:
+      - .:/app
+      - /app/node_modules
+
   db:
     image: postgres:15-alpine
     container_name: task_tracker_db
